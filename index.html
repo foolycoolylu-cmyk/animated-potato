@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balance hídrico pediátrico</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#eef4f6; --surface:#ffffff; --ink:#12313b; --muted:#5a7480; --line:#cfdfe5;
+  --accent:#0b7285; --accent-soft:#d6eef2; --warn-bg:#fff4dc; --warn-ink:#6b4a00;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0e1b20; --surface:#16272e; --ink:#e4f0f3; --muted:#93b0ba; --line:#2a4650;
+    --accent:#4fc3d6; --accent-soft:#17383f; --warn-bg:#3a2e12; --warn-ink:#f2d594;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0e1b20; --surface:#16272e; --ink:#e4f0f3; --muted:#93b0ba; --line:#2a4650;
+  --accent:#4fc3d6; --accent-soft:#17383f; --warn-bg:#3a2e12; --warn-ink:#f2d594;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;line-height:1.5}
+main{max-width:680px;margin:0 auto;padding:24px 16px 40px}
+h1{font-size:1.6rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+label,.lbl{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
+label small{font-weight:400;color:var(--muted)}
+input[type=number]{width:100%;font:inherit;font-size:1.1rem;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg label{flex:1;margin:0;text-align:center;padding:10px 8px;cursor:pointer;font-weight:600;background:var(--bg)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked + span{color:#fff}
+.seg label:has(input:checked){background:var(--accent);color:#fff}
+.seg label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:-3px}
+h2{font-size:1rem;margin:0 0 12px}
+.big{font-size:2.4rem;font-weight:700;color:var(--accent);line-height:1}
+.unit{color:var(--muted)}
+.row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);font-size:.85rem}
+td.n,td.r{font-weight:700;font-variant-numeric:tabular-nums}
+td.r{text-align:right}
+tr.total td{background:var(--accent-soft)}
+.empty{color:var(--muted);margin:0}
+.formulas{font-size:.88rem;color:var(--muted);margin:0;padding-left:18px}
+.formulas li{margin-bottom:4px}
+.note{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;font-size:.88rem}
+.small{font-size:.88rem;color:var(--muted);margin:10px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Balance hídrico pediátrico</h1>
+  <p class="sub">Pérdida insensible, ingresos, egresos, balance y flujo urinario.</p>
+
+  <section class="panel" aria-label="Datos del paciente">
+    <div class="fields">
+      <div>
+        <label for="peso">Peso <small>(kg)</small></label>
+        <input id="peso" type="number" inputmode="decimal" min="0.5" max="100" step="0.01" placeholder="ej. 12.5">
+      </div>
+      <div>
+        <label for="horas">Horas evaluadas <small>(h)</small></label>
+        <input id="horas" type="number" inputmode="decimal" min="1" max="72" step="0.5" value="24">
+      </div>
+      <div>
+        <span class="lbl" id="condLbl">Condición</span>
+        <div class="seg" role="radiogroup" aria-labelledby="condLbl">
+          <label><input type="radio" name="cond" value="0" checked><span>Sin fiebre</span></label>
+          <label><input type="radio" name="cond" value="1"><span>Con fiebre</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-live="polite">
+    <h2>Superficie corporal y pérdida insensible</h2>
+    <p class="empty" id="piVacio">Ingresa peso y horas para ver los resultados.</p>
+    <div id="piBox" hidden>
+      <div class="row" id="scRow"><span class="big" id="scVal"></span><span class="unit">m² de superficie corporal</span></div>
+      <p class="small" id="scNo" hidden>No se usa superficie corporal en pacientes menores de 10 kg.</p>
+      <div class="tablewrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>Pérdida insensible</th><th>Por hora</th><th>En <span id="hTxt"></span> h</th><th>En 24 h</th></tr></thead>
+          <tbody><tr class="total"><td id="piMetodo"></td><td class="n" id="p1h"></td><td class="n" id="p1t"></td><td class="n" id="p1d"></td></tr></tbody>
+        </table>
+      </div>
+      <p class="small" id="piNota"></p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Ingresos <small class="unit">(mL en las horas evaluadas)</small></h2>
+    <div class="fields">
+      <div><label for="in_vo">Vía oral</label><input id="in_vo" class="mov in" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div><label for="in_ev">Endovenoso</label><input id="in_ev" class="mov in" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div><label for="in_ot">Otros ingresos</label><input id="in_ot" class="mov in" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Egresos <small class="unit">(mL en las horas evaluadas)</small></h2>
+    <div class="fields">
+      <div><label for="eg_di">Diuresis</label><input id="eg_di" class="mov eg" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div><label for="eg_de">Deposiciones</label><input id="eg_de" class="mov eg" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div><label for="eg_vo">Vómitos</label><input id="eg_vo" class="mov eg" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div><label for="eg_ot">Drenajes u otros</label><input id="eg_ot" class="mov eg" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-live="polite">
+    <h2>Balance hídrico</h2>
+    <p class="empty" id="balVacio">Ingresa peso y horas para calcular el balance.</p>
+    <div id="balBox" hidden>
+      <div class="tablewrap">
+        <table>
+          <tbody>
+            <tr><td>Total de ingresos</td><td class="r" id="tIn"></td></tr>
+            <tr><td>Egresos medidos</td><td class="r" id="tEg"></td></tr>
+            <tr><td>Pérdida insensible</td><td class="r" id="tPi"></td></tr>
+            <tr><td>Total de egresos</td><td class="r" id="tEgT"></td></tr>
+            <tr class="total"><td id="balLbl"></td><td class="r" id="tBal"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-live="polite">
+    <h2>Flujo urinario</h2>
+    <div class="row"><span class="big" id="fuVal">—</span><span class="unit" id="fuUnit">mL/m²/h</span></div>
+    <p class="small" id="fuNota">Ingresa peso, horas y diuresis para calcularlo (solo desde 10 kg).</p>
+  </section>
+
+  <section class="panel">
+    <h2>Fórmulas usadas</h2>
+    <ul class="formulas">
+      <li>Menos de 10 kg: pérdida insensible = (peso × 33 / 24) × horas</li>
+      <li>10 kg o más: superficie corporal = (peso × 4 + 7) / (peso + 90)</li>
+      <li>10 kg o más, sin fiebre: 400 mL/m²/día × SC ÷ 24 × horas</li>
+      <li>10 kg o más, con fiebre: 600 mL/m²/día × SC ÷ 24 × horas</li>
+      <li>Balance = ingresos − (egresos medidos + pérdida insensible)</li>
+      <li>Flujo urinario (solo 10 kg o más) = volumen total de orina ÷ (SC × horas)</li>
+    </ul>
+  </section>
+
+  <p class="note">Resultados de apoyo. Confirma las fórmulas con el protocolo de tu servicio y la indicación médica antes de registrar el balance.</p>
+</main>
+
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var fmt = function(n, d){ return n.toLocaleString('es-PE',{minimumFractionDigits:d,maximumFractionDigits:d}); };
+var num = function(id){ var v = parseFloat($(id).value); return v > 0 ? v : 0; };
+var suma = function(ids){ return ids.reduce(function(a,id){ return a + num(id); }, 0); };
+
+function calcular(){
+  var peso = num('peso');
+  var horas = num('horas');
+  var fiebre = document.querySelector('input[name="cond"]:checked').value === '1';
+  var ok = peso > 0 && horas > 0;
+
+  $('piBox').hidden = !ok; $('piVacio').hidden = ok;
+  $('balBox').hidden = !ok; $('balVacio').hidden = ok;
+  if(!ok){
+    $('fuVal').textContent = '—';
+    $('fuUnit').textContent = 'mL/m²/h';
+    $('fuNota').textContent = 'Ingresa peso, horas y diuresis para calcularlo (solo desde 10 kg).';
+    return;
+  }
+
+  var pequeno = peso < 10;
+  var sc = pequeno ? null : (peso*4+7)/(peso+90);
+  var porHora;
+
+  if(pequeno){
+    porHora = peso*33/24;
+    $('piMetodo').textContent = '(peso × 33 / 24) × horas';
+    $('piNota').textContent = 'En pacientes menores de 10 kg la fórmula no cambia con la fiebre.';
+  } else {
+    var f = fiebre ? 600 : 400;
+    porHora = f*sc/24;
+    $('piMetodo').textContent = f + ' mL/m²/día × SC ÷ 24 × horas';
+    $('piNota').textContent = fiebre ? 'Con fiebre: se usó 600 mL/m²/día.' : 'Sin fiebre: se usó 400 mL/m²/día.';
+  }
+  $('scRow').hidden = pequeno; $('scNo').hidden = !pequeno;
+  if(!pequeno) $('scVal').textContent = fmt(sc,2);
+
+  var pi = porHora*horas;
+  $('hTxt').textContent = fmt(horas, horas%1 ? 1 : 0);
+  $('p1h').textContent = fmt(porHora,1) + ' mL';
+  $('p1t').textContent = fmt(pi,0) + ' mL';
+  $('p1d').textContent = fmt(porHora*24,0) + ' mL';
+
+  var ing = suma(['in_vo','in_ev','in_ot']);
+  var egM = suma(['eg_di','eg_de','eg_vo','eg_ot']);
+  var egT = egM + pi;
+  var bal = ing - egT;
+
+  $('tIn').textContent = fmt(ing,0) + ' mL';
+  $('tEg').textContent = fmt(egM,0) + ' mL';
+  $('tPi').textContent = fmt(pi,0) + ' mL';
+  $('tEgT').textContent = fmt(egT,0) + ' mL';
+  var signo = bal > 0 ? '+' : (bal < 0 ? '−' : '');
+  $('tBal').textContent = signo + fmt(Math.abs(bal),0) + ' mL';
+  $('balLbl').textContent = 'Balance en ' + fmt(horas, horas%1 ? 1 : 0) + ' h' + (bal > 0 ? ' (positivo)' : bal < 0 ? ' (negativo)' : ' (neutro)');
+
+  var orina = num('eg_di');
+  if(pequeno){
+    $('fuVal').textContent = '—';
+    $('fuUnit').textContent = 'flujo urinario';
+    $('fuNota').textContent = 'El flujo urinario se calcula solo en pacientes de 10 kg o más.';
+  } else if(orina > 0){
+    $('fuVal').textContent = fmt(orina/(sc*horas),2);
+    $('fuUnit').textContent = 'mL/m²/h de flujo urinario';
+    $('fuNota').textContent = '';
+  } else {
+    $('fuVal').textContent = '—';
+    $('fuUnit').textContent = 'flujo urinario';
+    $('fuNota').textContent = 'Ingresa la diuresis para calcular el flujo urinario.';
+  }
+}
+
+document.querySelectorAll('input').forEach(function(el){ el.addEventListener('input', calcular); el.addEventListener('change', calcular); });
+calcular();
+</script>
+</body>
+</html>
